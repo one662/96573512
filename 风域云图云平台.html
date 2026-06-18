@@ -1,0 +1,2060 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WindGuard · 风电运维云平台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #0a0f1a;
+    --bg-main: #0f1629;
+    --bg-card: #151d33;
+    --bg-card-hover: #1a2440;
+    --border: #1e2d4a;
+    --border-light: #2a3f6a;
+    --text-primary: #e8edf5;
+    --text-secondary: #7b8db5;
+    --text-muted: #4a5a80;
+    --accent: #00e5a0;
+    --accent-dim: rgba(0,229,160,0.15);
+    --accent-glow: rgba(0,229,160,0.4);
+    --warning: #ffb020;
+    --danger: #ff4757;
+    --info: #3ea8ff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans SC', sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  .font-display { font-family: 'Orbitron', monospace; }
+
+  /* 滚动条 */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg-deep); }
+  ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* 侧边栏 */
+  .sidebar {
+    width: 220px;
+    background: var(--bg-main);
+    border-right: 1px solid var(--border);
+    height: 100vh;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.3s ease;
+  }
+
+  .sidebar-logo {
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, var(--accent), #00b880);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--bg-deep);
+    box-shadow: 0 0 20px var(--accent-glow);
+  }
+
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 3px solid transparent;
+    font-size: 14px;
+    position: relative;
+  }
+
+  .nav-item:hover {
+    color: var(--text-primary);
+    background: rgba(0,229,160,0.05);
+  }
+
+  .nav-item.active {
+    color: var(--accent);
+    background: var(--accent-dim);
+    border-left-color: var(--accent);
+  }
+
+  .nav-item i { width: 20px; text-align: center; font-size: 15px; }
+
+  .nav-badge {
+    position: absolute;
+    right: 16px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+    font-weight: 700;
+  }
+
+  /* 主内容区 */
+  .main-content {
+    margin-left: 220px;
+    min-height: 100vh;
+  }
+
+  /* 顶栏 */
+  .topbar {
+    height: 60px;
+    background: rgba(15,22,41,0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+  }
+
+  /* 风场3D画布 */
+  #windCanvas {
+    width: 100%;
+    height: 320px;
+    display: block;
+    position: relative;
+  }
+
+  /* 卡片 */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s;
+  }
+
+  .card:hover {
+    border-color: var(--border-light);
+    background: var(--bg-card-hover);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.3);
+  }
+
+  /* KPI卡片 */
+  .kpi-card {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .kpi-card.green::before { background: linear-gradient(90deg, var(--accent), #00b880); }
+  .kpi-card.blue::before { background: linear-gradient(90deg, var(--info), #2080ff); }
+  .kpi-card.yellow::before { background: linear-gradient(90deg, var(--warning), #ff8c00); }
+  .kpi-card.red::before { background: linear-gradient(90deg, var(--danger), #ff2040); }
+
+  .kpi-value {
+    font-family: 'Orbitron', monospace;
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1.2;
+  }
+
+  .kpi-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-weight: 500;
+  }
+
+  .kpi-trend.up { color: var(--accent); background: var(--accent-dim); }
+  .kpi-trend.down { color: var(--danger); background: rgba(255,71,87,0.15); }
+
+  /* 风机状态指示灯 */
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .status-dot.running { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+  .status-dot.warning { background: var(--warning); box-shadow: 0 0 8px rgba(255,176,32,0.4); }
+  .status-dot.fault { background: var(--danger); box-shadow: 0 0 8px rgba(255,71,87,0.4); animation: pulse-dot 1.5s infinite; }
+  .status-dot.maintenance { background: var(--info); box-shadow: 0 0 8px rgba(62,168,255,0.4); }
+  .status-dot.offline { background: var(--text-muted); }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+
+  /* 表格 */
+  .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .data-table th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .data-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(30,45,74,0.5);
+    color: var(--text-secondary);
+  }
+  .data-table tbody tr { transition: background 0.2s; }
+  .data-table tbody tr:hover { background: rgba(0,229,160,0.03); }
+
+  /* 状态标签 */
+  .status-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .status-tag.running { background: var(--accent-dim); color: var(--accent); }
+  .status-tag.warning { background: rgba(255,176,32,0.15); color: var(--warning); }
+  .status-tag.fault { background: rgba(255,71,87,0.15); color: var(--danger); }
+  .status-tag.maintenance { background: rgba(62,168,255,0.15); color: var(--info); }
+  .status-tag.offline { background: rgba(74,90,128,0.2); color: var(--text-muted); }
+
+  /* 工单优先级 */
+  .priority-high { color: var(--danger); }
+  .priority-medium { color: var(--warning); }
+  .priority-low { color: var(--info); }
+
+  /* 进度条 */
+  .progress-bar {
+    height: 6px;
+    background: rgba(30,45,74,0.6);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+  }
+
+  /* 弹窗 */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    z-index: 100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .modal-overlay.show { display: flex; opacity: 1; }
+  .modal-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 16px;
+    padding: 28px;
+    max-width: 560px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    transform: scale(0.95);
+    transition: transform 0.3s;
+  }
+  .modal-overlay.show .modal-box { transform: scale(1); }
+
+  /* Toast通知 */
+  .toast-container {
+    position: fixed;
+    top: 80px;
+    right: 24px;
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    background: var(--bg-card);
+    border: 1px solid var(--border-light);
+    border-radius: 10px;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 300px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+    animation: slideInRight 0.3s ease;
+    font-size: 13px;
+  }
+
+  @keyframes slideInRight {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @keyframes fadeOut {
+    to { transform: translateX(100%); opacity: 0; }
+  }
+
+  /* 实时数据闪烁 */
+  .live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  .live-indicator::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse-dot 1.5s infinite;
+  }
+
+  /* 环境信息条 */
+  .env-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .env-item {
+    background: var(--bg-card);
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .env-item i { color: var(--text-muted); font-size: 16px; width: 20px; text-align: center; }
+
+  /* 风机详情面板 */
+  .detail-panel {
+    position: absolute;
+    right: -360px;
+    top: 0;
+    width: 360px;
+    height: 100%;
+    background: var(--bg-main);
+    border-left: 1px solid var(--border);
+    transition: right 0.35s ease;
+    z-index: 30;
+    overflow-y: auto;
+    padding: 24px;
+  }
+  .detail-panel.open { right: 0; }
+
+  /* 图表容器 */
+  .chart-container { position: relative; height: 220px; }
+  .chart-container-sm { position: relative; height: 180px; }
+
+  /* 动画背景网格 */
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(30,45,74,0.3) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(30,45,74,0.3) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  /* 标签页 */
+  .tab-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: inherit;
+  }
+  .tab-btn:hover { color: var(--text-secondary); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* 按钮 */
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), #00b880);
+    color: var(--bg-deep);
+    font-weight: 700;
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  .btn-primary:hover { box-shadow: 0 0 20px var(--accent-glow); transform: translateY(-1px); }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-light);
+    padding: 8px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* 搜索框 */
+  .search-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px 8px 36px;
+    color: var(--text-primary);
+    font-size: 13px;
+    outline: none;
+    width: 240px;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-muted); }
+
+  /* 响应式 */
+  @media (max-width: 1024px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .main-content { margin-left: 0; }
+    .env-strip { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* 告警列表项 */
+  .alert-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    transition: background 0.2s;
+    cursor: pointer;
+  }
+  .alert-item:hover { background: rgba(0,229,160,0.03); }
+  .alert-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 13px;
+  }
+  .alert-icon.danger { background: rgba(255,71,87,0.15); color: var(--danger); }
+  .alert-icon.warning { background: rgba(255,176,32,0.15); color: var(--warning); }
+  .alert-icon.info { background: rgba(62,168,255,0.15); color: var(--info); }
+
+  /* 风力等级指示 */
+  .wind-scale {
+    display: flex;
+    gap: 2px;
+    align-items: flex-end;
+    height: 20px;
+  }
+  .wind-bar {
+    width: 4px;
+    border-radius: 2px;
+    background: var(--text-muted);
+    transition: background 0.3s;
+  }
+  .wind-bar.active { background: var(--accent); }
+  .wind-bar.warn { background: var(--warning); }
+  .wind-bar.danger { background: var(--danger); }
+</style>
+</head>
+<body>
+
+<!-- 侧边栏 -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon"><i class="fas fa-wind"></i></div>
+    <div>
+      <div class="font-display text-sm font-bold tracking-wider" style="color:var(--accent)">WINDGUARD</div>
+      <div style="font-size:10px;color:var(--text-muted)">风电运维云平台 v3.2</div>
+    </div>
+  </div>
+  <nav style="flex:1;padding:12px 0;overflow-y:auto;">
+    <div class="nav-item active" data-page="overview" onclick="switchPage('overview',this)">
+      <i class="fas fa-th-large"></i><span>总览中心</span>
+    </div>
+    <div class="nav-item" data-page="turbines" onclick="switchPage('turbines',this)">
+      <i class="fas fa-fan"></i><span>风机管理</span>
+    </div>
+    <div class="nav-item" data-page="power" onclick="switchPage('power',this)">
+      <i class="fas fa-bolt"></i><span>发电监测</span>
+    </div>
+    <div class="nav-item" data-page="maintenance" onclick="switchPage('maintenance',this)">
+      <i class="fas fa-wrench"></i><span>运维工单</span>
+      <span class="nav-badge">3</span>
+    </div>
+    <div class="nav-item" data-page="alerts" onclick="switchPage('alerts',this)">
+      <i class="fas fa-bell"></i><span>告警中心</span>
+      <span class="nav-badge">7</span>
+    </div>
+    <div class="nav-item" data-page="analysis" onclick="switchPage('analysis',this)">
+      <i class="fas fa-chart-line"></i><span>数据分析</span>
+    </div>
+    <div style="height:1px;background:var(--border);margin:12px 20px;"></div>
+    <div class="nav-item" data-page="settings" onclick="switchPage('settings',this)">
+      <i class="fas fa-cog"></i><span>系统设置</span>
+    </div>
+  </nav>
+  <div style="padding:16px 20px;border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;">
+    <div style="width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#3ea8ff,#2060ff);display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:700;">张</div>
+    <div>
+      <div style="font-size:13px;font-weight:500;">张明远</div>
+      <div style="font-size:11px;color:var(--text-muted);">运维主管</div>
+    </div>
+  </div>
+</aside>
+
+<!-- 主内容 -->
+<div class="main-content">
+  <!-- 顶栏 -->
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:16px;">
+      <button onclick="document.getElementById('sidebar').classList.toggle('open')" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:18px;display:none;" class="menu-btn"><i class="fas fa-bars"></i></button>
+      <div style="position:relative;">
+        <i class="fas fa-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);font-size:13px;"></i>
+        <input type="text" class="search-box" placeholder="搜索风机、工单、告警..." aria-label="全局搜索">
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:20px;">
+      <span class="live-indicator">实时监控中</span>
+      <span id="currentTime" class="font-display" style="font-size:13px;color:var(--text-secondary);letter-spacing:1px;"></span>
+      <button onclick="showToast('数据已刷新','success')" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;" title="刷新数据" aria-label="刷新数据"><i class="fas fa-sync-alt"></i></button>
+      <button onclick="toggleNotifPanel()" style="background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:16px;position:relative;" aria-label="通知">
+        <i class="fas fa-bell"></i>
+        <span style="position:absolute;top:-4px;right:-6px;width:16px;height:16px;background:var(--danger);border-radius:50%;font-size:9px;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">7</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 页面内容容器 -->
+  <div id="pageContent"></div>
+</div>
+
+<!-- 风机详情侧面板 -->
+<div class="detail-panel" id="detailPanel">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <h3 style="font-size:16px;font-weight:700;" id="detailTitle">风机详情</h3>
+    <button onclick="closeDetailPanel()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;" aria-label="关闭面板"><i class="fas fa-times"></i></button>
+  </div>
+  <div id="detailContent"></div>
+</div>
+
+<!-- 弹窗 -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box" id="modalBox"></div>
+</div>
+
+<!-- Toast容器 -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ===================== 数据模型 =====================
+
+// 风机数据
+const turbines = [
+  { id:'WTG-01', name:'1号风机', model:'MY-3.6-136', status:'running', power:3420, windSpeed:11.2, rotorSpeed:12.8, nacelleTemp:42, gearTemp:58, vibration:2.1, yawAngle:225, pitchAngle:8.5, totalEnergy:12845, monthEnergy:328, todayEnergy:11.2, health:96, installDate:'2021-06-15', location:'A区-01' },
+  { id:'WTG-02', name:'2号风机', model:'MY-3.6-136', status:'running', power:3180, windSpeed:10.8, rotorSpeed:12.3, nacelleTemp:44, gearTemp:61, vibration:2.4, yawAngle:230, pitchAngle:9.2, totalEnergy:12680, monthEnergy:315, todayEnergy:10.5, health:94, installDate:'2021-06-15', location:'A区-02' },
+  { id:'WTG-03', name:'3号风机', model:'MY-3.6-136', status:'warning', power:1850, windSpeed:9.5, rotorSpeed:9.8, nacelleTemp:52, gearTemp:72, vibration:4.8, yawAngle:228, pitchAngle:12.1, totalEnergy:11920, monthEnergy:286, todayEnergy:7.8, health:72, installDate:'2021-07-20', location:'A区-03' },
+  { id:'WTG-04', name:'4号风机', model:'MY-3.6-136', status:'running', power:3560, windSpeed:11.8, rotorSpeed:13.1, nacelleTemp:41, gearTemp:56, vibration:1.9, yawAngle:222, pitchAngle:7.8, totalEnergy:13020, monthEnergy:335, todayEnergy:11.8, health:98, installDate:'2021-07-20', location:'B区-01' },
+  { id:'WTG-05', name:'5号风机', model:'MY-3.6-136', status:'fault', power:0, windSpeed:10.5, rotorSpeed:0, nacelleTemp:38, gearTemp:45, vibration:0.2, yawAngle:225, pitchAngle:90, totalEnergy:11450, monthEnergy:248, todayEnergy:0, health:35, installDate:'2021-08-10', location:'B区-02' },
+  { id:'WTG-06', name:'6号风机', model:'MY-4.0-146', status:'running', power:3890, windSpeed:12.1, rotorSpeed:11.5, nacelleTemp:43, gearTemp:59, vibration:2.0, yawAngle:220, pitchAngle:7.2, totalEnergy:15230, monthEnergy:398, todayEnergy:13.1, health:97, installDate:'2022-03-15', location:'B区-03' },
+  { id:'WTG-07', name:'7号风机', model:'MY-4.0-146', status:'running', power:3720, windSpeed:11.6, rotorSpeed:11.2, nacelleTemp:44, gearTemp:60, vibration:2.3, yawAngle:226, pitchAngle:8.0, totalEnergy:14980, monthEnergy:385, todayEnergy:12.5, health:95, installDate:'2022-03-15', location:'C区-01' },
+  { id:'WTG-08', name:'8号风机', model:'MY-4.0-146', status:'maintenance', power:0, windSpeed:10.2, rotorSpeed:0, nacelleTemp:35, gearTemp:40, vibration:0.1, yawAngle:225, pitchAngle:90, totalEnergy:14320, monthEnergy:310, todayEnergy:0, health:60, installDate:'2022-03-15', location:'C区-02' },
+  { id:'WTG-09', name:'9号风机', model:'MY-4.0-146', status:'running', power:3950, windSpeed:12.5, rotorSpeed:11.8, nacelleTemp:42, gearTemp:57, vibration:1.8, yawAngle:218, pitchAngle:6.8, totalEnergy:15450, monthEnergy:405, todayEnergy:13.5, health:99, installDate:'2022-04-20', location:'C区-03' },
+  { id:'WTG-10', name:'10号风机', model:'MY-4.0-146', status:'running', power:3680, windSpeed:11.4, rotorSpeed:11.0, nacelleTemp:45, gearTemp:62, vibration:2.6, yawAngle:224, pitchAngle:8.3, totalEnergy:14780, monthEnergy:378, todayEnergy:12.2, health:92, installDate:'2022-04-20', location:'D区-01' },
+  { id:'WTG-11', name:'11号风机', model:'MY-4.0-146', status:'warning', power:1520, windSpeed:8.8, rotorSpeed:8.5, nacelleTemp:55, gearTemp:78, vibration:5.2, yawAngle:232, pitchAngle:14.5, totalEnergy:13890, monthEnergy:295, todayEnergy:5.2, health:65, installDate:'2022-05-10', location:'D区-02' },
+  { id:'WTG-12', name:'12号风机', model:'MY-4.0-146', status:'running', power:3810, windSpeed:11.9, rotorSpeed:11.6, nacelleTemp:41, gearTemp:55, vibration:1.7, yawAngle:221, pitchAngle:7.5, totalEnergy:15120, monthEnergy:392, todayEnergy:12.8, health:97, installDate:'2022-05-10', location:'D区-03' },
+  { id:'WTG-13', name:'13号风机', model:'MY-3.6-136', status:'offline', power:0, windSpeed:0, rotorSpeed:0, nacelleTemp:22, gearTemp:25, vibration:0, yawAngle:0, pitchAngle:90, totalEnergy:10890, monthEnergy:180, todayEnergy:0, health:0, installDate:'2021-06-15', location:'A区-04' },
+  { id:'WTG-14', name:'14号风机', model:'MY-3.6-136', status:'running', power:3350, windSpeed:11.0, rotorSpeed:12.5, nacelleTemp:43, gearTemp:59, vibration:2.2, yawAngle:227, pitchAngle:8.8, totalEnergy:12560, monthEnergy:320, todayEnergy:10.8, health:95, installDate:'2021-08-10', location:'B区-04' },
+  { id:'WTG-15', name:'15号风机', model:'MY-3.6-136', status:'running', power:3210, windSpeed:10.6, rotorSpeed:12.1, nacelleTemp:44, gearTemp:60, vibration:2.5, yawAngle:229, pitchAngle:9.5, totalEnergy:12340, monthEnergy:308, todayEnergy:10.2, health:93, installDate:'2021-09-05', location:'C区-04' },
+];
+
+// 告警数据
+const alerts = [
+  { id:'ALT-001', turbineId:'WTG-05', level:'danger', type:'设备故障', message:'主轴承温度超限报警，当前温度92℃，超过阈值85℃', time:'2024-01-15 14:32:18', status:'未处理' },
+  { id:'ALT-002', turbineId:'WTG-03', level:'warning', type:'振动异常', message:'齿轮箱振动值偏高，当前4.8mm/s，预警阈值4.5mm/s', time:'2024-01-15 13:18:45', status:'已确认' },
+  { id:'ALT-003', turbineId:'WTG-11', level:'warning', type:'温度异常', message:'偏航电机温度持续升高，当前78℃，趋势异常', time:'2024-01-15 12:05:33', status:'处理中' },
+  { id:'ALT-004', turbineId:'WTG-05', level:'danger', type:'通信故障', message:'与SCADA系统通信中断超过30分钟', time:'2024-01-15 11:50:20', status:'未处理' },
+  { id:'ALT-005', turbineId:'WTG-03', level:'info', type:'功率异常', message:'实际功率偏离理论功率曲线超过15%', time:'2024-01-15 10:42:11', status:'已确认' },
+  { id:'ALT-006', turbineId:'WTG-10', level:'warning', type:'润滑系统', message:'齿轮箱润滑油位低于正常范围', time:'2024-01-15 09:28:56', status:'处理中' },
+  { id:'ALT-007', turbineId:'WTG-13', level:'danger', type:'供电异常', message:'风机失电，可能为箱变故障', time:'2024-01-15 08:15:40', status:'未处理' },
+];
+
+// 工单数据
+const workOrders = [
+  { id:'WO-2024-0089', turbineId:'WTG-05', title:'主轴承温度超限排查', priority:'high', status:'进行中', assignee:'李建国', create:'2024-01-15', deadline:'2024-01-16', progress:45 },
+  { id:'WO-2024-0088', turbineId:'WTG-08', title:'齿轮箱油样采集与检测', priority:'medium', status:'进行中', assignee:'王志强', create:'2024-01-15', deadline:'2024-01-17', progress:70 },
+  { id:'WO-2024-0087', turbineId:'WTG-03', title:'振动异常专项检查', priority:'high', status:'待分配', assignee:'--', create:'2024-01-15', deadline:'2024-01-16', progress:0 },
+  { id:'WO-2024-0086', turbineId:'WTG-11', title:'偏航系统维护保养', priority:'medium', status:'已完成', assignee:'赵海峰', create:'2024-01-14', deadline:'2024-01-15', progress:100 },
+  { id:'WO-2024-0085', turbineId:'WTG-10', title:'润滑油补充', priority:'low', status:'待分配', assignee:'--', create:'2024-01-14', deadline:'2024-01-18', progress:0 },
+  { id:'WO-2024-0084', turbineId:'WTG-13', title:'箱变故障排查修复', priority:'high', status:'待分配', assignee:'--', create:'2024-01-15', deadline:'2024-01-16', progress:0 },
+  { id:'WO-2024-0083', turbineId:'WTG-01', title:'叶片巡检（无人机）', priority:'low', status:'已完成', assignee:'陈明亮', create:'2024-01-13', deadline:'2024-01-15', progress:100 },
+  { id:'WO-2024-0082', turbineId:'WTG-06', title:'变桨系统例行检查', priority:'low', status:'已完成', assignee:'刘卫东', create:'2024-01-12', deadline:'2024-01-14', progress:100 },
+];
+
+// 环境数据
+const envData = {
+  windSpeed: 11.3, windDir: '西南风(225°)', temperature: 8.5, humidity: 65,
+  pressure: 1013.2, airDensity: 1.225, turbulence: 0.12
+};
+
+// 发电历史（24小时）
+function genHourlyData() {
+  const data = [];
+  for (let i = 0; i < 24; i++) {
+    const base = i < 6 ? 800 : i < 18 ? 3200 + Math.sin((i-6)/12*Math.PI)*1500 : 1200;
+    data.push(Math.round(base + (Math.random()-0.5)*600));
+  }
+  return data;
+}
+const hourlyPower = genHourlyData();
+
+// 月度发电数据
+const monthlyPower = [2850,3120,3450,3280,3680,3520,3350,3180,3450,3680,3950,4120];
+const monthlyLabels = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+// 图表实例存储
+const chartInstances = {};
+
+// ===================== 工具函数 =====================
+
+function statusText(s) {
+  const m = { running:'正常运行', warning:'预警运行', fault:'故障停机', maintenance:'维护中', offline:'离线' };
+  return m[s] || s;
+}
+function priorityText(p) {
+  const m = { high:'紧急', medium:'一般', low:'低' };
+  return m[p] || p;
+}
+function woStatusText(s) {
+  const m = { '待分配':'待分配', '进行中':'进行中', '已完成':'已完成' };
+  return m[s] || s;
+}
+
+function showToast(msg, type='info') {
+  const c = document.getElementById('toastContainer');
+  const icons = { success:'fa-check-circle', info:'fa-info-circle', warning:'fa-exclamation-triangle', danger:'fa-times-circle' };
+  const colors = { success:'var(--accent)', info:'var(--info)', warning:'var(--warning)', danger:'var(--danger)' };
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.innerHTML = `<i class="fas ${icons[type]}" style="color:${colors[type]};font-size:16px;"></i><span style="color:var(--text-primary)">${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => { t.style.animation = 'fadeOut 0.3s ease forwards'; setTimeout(() => t.remove(), 300); }, 3000);
+}
+
+function openModal(html) {
+  document.getElementById('modalBox').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+function closeDetailPanel() {
+  document.getElementById('detailPanel').classList.remove('open');
+}
+
+function toggleNotifPanel() {
+  switchPage('alerts', document.querySelector('[data-page="alerts"]'));
+}
+
+// 时间更新
+function updateTime() {
+  const now = new Date();
+  const str = now.getFullYear() + '-' +
+    String(now.getMonth()+1).padStart(2,'0') + '-' +
+    String(now.getDate()).padStart(2,'0') + ' ' +
+    String(now.getHours()).padStart(2,'0') + ':' +
+    String(now.getMinutes()).padStart(2,'0') + ':' +
+    String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('currentTime').textContent = str;
+}
+setInterval(updateTime, 1000);
+updateTime();
+
+// 响应式菜单按钮
+function checkResponsive() {
+  const btn = document.querySelector('.menu-btn');
+  if (btn) btn.style.display = window.innerWidth <= 1024 ? 'block' : 'none';
+}
+window.addEventListener('resize', checkResponsive);
+checkResponsive();
+
+// ===================== 风场3D可视化 =====================
+
+function initWindCanvas() {
+  const canvas = document.getElementById('windCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+    canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const W = () => canvas.offsetWidth;
+  const H = () => canvas.offsetHeight;
+
+  // 粒子（风）
+  const particles = [];
+  for (let i = 0; i < 80; i++) {
+    particles.push({
+      x: Math.random() * 1400,
+      y: Math.random() * 320,
+      speed: 1.5 + Math.random() * 3,
+      size: 1 + Math.random() * 1.5,
+      alpha: 0.15 + Math.random() * 0.3
+    });
+  }
+
+  // 风机配置位置（等距透视投影）
+  const turbinePositions = [
+    { x: 0.1, row: 0 }, { x: 0.3, row: 0 }, { x: 0.5, row: 0 }, { x: 0.7, row: 0 }, { x: 0.9, row: 0 },
+    { x: 0.15, row: 1 }, { x: 0.38, row: 1 }, { x: 0.62, row: 1 }, { x: 0.85, row: 1 },
+    { x: 0.1, row: 2 }, { x: 0.35, row: 2 }, { x: 0.6, row: 2 }, { x: 0.85, row: 2 },
+    { x: 0.22, row: 3 }, { x: 0.5, row: 3 }, { x: 0.78, row: 3 },
+  ];
+
+  let time = 0;
+
+  function drawTurbine(cx, baseY, scale, turbine, t) {
+    const towerH = 100 * scale;
+    const hubH = towerH;
+    const bladeLen = 38 * scale;
+    const nacelleW = 14 * scale;
+    const nacelleH = 6 * scale;
+
+    const hubX = cx;
+    const hubY = baseY - hubH;
+
+    // 塔筒
+    const grad = ctx.createLinearGradient(cx - 4*scale, 0, cx + 4*scale, 0);
+    grad.addColorStop(0, '#3a4a6a');
+    grad.addColorStop(0.5, '#5a6a8a');
+    grad.addColorStop(1, '#3a4a6a');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(cx - 5*scale, baseY);
+    ctx.lineTo(cx - 3*scale, hubY + nacelleH/2);
+    ctx.lineTo(cx + 3*scale, hubY + nacelleH/2);
+    ctx.lineTo(cx + 5*scale, baseY);
+    ctx.fill();
+
+    // 机舱
+    ctx.fillStyle = '#4a5a7a';
+    ctx.beginPath();
+    ctx.roundRect(hubX - nacelleW/2, hubY - nacelleH/2, nacelleW, nacelleH, 3*scale);
+    ctx.fill();
+
+    // 叶片
+    let rotSpeed = 0;
+    let bladeColor = '#8aa0c0';
+    if (turbine.status === 'running') {
+      rotSpeed = 0.02 + turbine.rotorSpeed * 0.001;
+      bladeColor = '#b0c8e8';
+    } else if (turbine.status === 'warning') {
+      rotSpeed = 0.012 + turbine.rotorSpeed * 0.001;
+      bladeColor = '#d0a848';
+    } else if (turbine.status === 'fault') {
+      bladeColor = '#c04050';
+    }
+
+    for (let b = 0; b < 3; b++) {
+      const angle = t * rotSpeed + (b * Math.PI * 2 / 3);
+      const bx = hubX + Math.sin(angle) * bladeLen;
+      const by = hubY + Math.cos(angle) * bladeLen;
+
+      ctx.strokeStyle = bladeColor;
+      ctx.lineWidth = Math.max(1, 2.5 * scale);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(hubX, hubY);
+      // 叶片有轻微弧度
+      const cpx = hubX + Math.sin(angle) * bladeLen * 0.5 + Math.cos(angle) * 4 * scale;
+      const cpy = hubY + Math.cos(angle) * bladeLen * 0.5 - Math.sin(angle) * 4 * scale;
+      ctx.quadraticCurveTo(cpx, cpy, bx, by);
+      ctx.stroke();
+    }
+
+    // 轮毂
+    ctx.fillStyle = '#6a7a9a';
+    ctx.beginPath();
+    ctx.arc(hubX, hubY, 4*scale, 0, Math.PI*2);
+    ctx.fill();
+
+    // 状态指示灯
+    const statusColors = { running:'#00e5a0', warning:'#ffb020', fault:'#ff4757', maintenance:'#3ea8ff', offline:'#4a5a80' };
+    ctx.fillStyle = statusColors[turbine.status] || '#4a5a80';
+    ctx.shadowColor = statusColors[turbine.status] || '#4a5a80';
+    ctx.shadowBlur = turbine.status === 'fault' ? 8 + Math.sin(t*3)*4 : 6;
+    ctx.beginPath();
+    ctx.arc(hubX, hubY - nacelleH, 3*scale, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // 底座
+    ctx.fillStyle = '#2a3a5a';
+    ctx.beginPath();
+    ctx.ellipse(cx, baseY, 8*scale, 3*scale, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // 风机编号
+    if (scale > 0.7) {
+      ctx.fillStyle = 'rgba(200,210,230,0.5)';
+      ctx.font = `${Math.round(9*scale)}px "Noto Sans SC"`;
+      ctx.textAlign = 'center';
+      ctx.fillText(turbine.id, cx, baseY + 14*scale);
+    }
+  }
+
+  function draw() {
+    const w = W(), h = H();
+    ctx.clearRect(0, 0, w, h);
+
+    // 天空渐变
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, h);
+    skyGrad.addColorStop(0, '#070d1a');
+    skyGrad.addColorStop(0.4, '#0f1e38');
+    skyGrad.addColorStop(0.7, '#162a48');
+    skyGrad.addColorStop(1, '#1a3050');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // 星星
+    for (let i = 0; i < 40; i++) {
+      const sx = (Math.sin(i*127.1+43.7)*0.5+0.5) * w;
+      const sy = (Math.sin(i*269.5+18.3)*0.5+0.5) * h * 0.5;
+      const sa = 0.3 + Math.sin(time*0.5 + i*3)*0.2;
+      ctx.fillStyle = `rgba(200,220,255,${sa})`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 0.8, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // 远山
+    ctx.fillStyle = '#0d1825';
+    ctx.beginPath();
+    ctx.moveTo(0, h*0.65);
+    for (let x = 0; x <= w; x += 20) {
+      ctx.lineTo(x, h*0.65 - Math.sin(x*0.003)*30 - Math.sin(x*0.008)*15 - 10);
+    }
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.fill();
+
+    // 地面
+    const groundGrad = ctx.createLinearGradient(0, h*0.72, 0, h);
+    groundGrad.addColorStop(0, '#0f2030');
+    groundGrad.addColorStop(1, '#0a1520');
+    ctx.fillStyle = groundGrad;
+    ctx.beginPath();
+    ctx.moveTo(0, h*0.72);
+    for (let x = 0; x <= w; x += 10) {
+      ctx.lineTo(x, h*0.72 + Math.sin(x*0.01+time*0.2)*2);
+    }
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.fill();
+
+    // 风粒子
+    ctx.save();
+    particles.forEach(p => {
+      p.x += p.speed;
+      if (p.x > w + 20) { p.x = -20; p.y = Math.random() * h; }
+      ctx.fillStyle = `rgba(180,210,240,${p.alpha})`;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, p.size * 3, p.size * 0.5, 0, 0, Math.PI*2);
+      ctx.fill();
+    });
+    ctx.restore();
+
+    // 绘制风机（按行从远到近）
+    const rows = 4;
+    const rowSpacing = (h * 0.72 - 60) / rows;
+    turbinePositions.forEach((pos, idx) => {
+      const baseY = 55 + rowSpacing * pos.row + rowSpacing * 0.6;
+      const scale = 0.5 + pos.row * 0.18;
+      const cx = pos.x * w;
+      drawTurbine(cx, baseY, scale, turbines[idx], time);
+    });
+
+    // 底部信息条
+    ctx.fillStyle = 'rgba(10,15,26,0.7)';
+    ctx.fillRect(0, h-40, w, 40);
+    ctx.fillStyle = 'rgba(30,45,74,0.6)';
+    ctx.fillRect(0, h-40, w, 1);
+
+    ctx.font = '12px "Noto Sans SC"';
+    ctx.fillStyle = '#7b8db5';
+    ctx.textAlign = 'left';
+    ctx.fillText('📍 北方风电场 · 总装机容量 53.4MW · 运行风机 10台', 16, h-16);
+
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#00e5a0';
+    ctx.fillText(`实时总功率 ${(turbines.reduce((s,t)=>s+t.power,0)/1000).toFixed(1)} MW`, w-16, h-16);
+
+    time += 1;
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ===================== 图表通用配置 =====================
+
+const chartDefaults = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { labels: { color: '#7b8db5', font: { size: 11, family: 'Noto Sans SC' }, boxWidth: 12, padding: 16 } }
+  },
+  scales: {
+    x: { ticks: { color: '#4a5a80', font: { size: 10 } }, grid: { color: 'rgba(30,45,74,0.4)' }, border: { color: 'rgba(30,45,74,0.6)' } },
+    y: { ticks: { color: '#4a5a80', font: { size: 10 } }, grid: { color: 'rgba(30,45,74,0.4)' }, border: { color: 'rgba(30,45,74,0.6)' } }
+  }
+};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+// ===================== 页面渲染 =====================
+
+function switchPage(page, navEl) {
+  // 更新导航高亮
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (navEl) navEl.classList.add('active');
+
+  // 移动端关闭侧边栏
+  if (window.innerWidth <= 1024) document.getElementById('sidebar').classList.remove('open');
+
+  // 销毁旧图表
+  Object.keys(chartInstances).forEach(destroyChart);
+
+  const container = document.getElementById('pageContent');
+  closeDetailPanel();
+
+  switch(page) {
+    case 'overview': renderOverview(container); break;
+    case 'turbines': renderTurbines(container); break;
+    case 'power': renderPower(container); break;
+    case 'maintenance': renderMaintenance(container); break;
+    case 'alerts': renderAlerts(container); break;
+    case 'analysis': renderAnalysis(container); break;
+    case 'settings': renderSettings(container); break;
+    default: renderOverview(container);
+  }
+}
+
+// -------- 总览中心 --------
+function renderOverview(container) {
+  const running = turbines.filter(t=>t.status==='running').length;
+  const totalPower = turbines.reduce((s,t)=>s+t.power,0);
+  const todayEnergy = turbines.reduce((s,t)=>s+t.todayEnergy,0);
+  const faultCount = turbines.filter(t=>t.status==='fault'||t.status==='offline').length;
+
+  container.innerHTML = `
+    <!-- 风场3D可视化 -->
+    <div style="position:relative;">
+      <canvas id="windCanvas"></canvas>
+    </div>
+
+    <!-- 环境信息 -->
+    <div style="padding:16px 24px;">
+      <div class="env-strip">
+        <div class="env-item">
+          <i class="fas fa-wind"></i>
+          <div><div style="font-size:11px;color:var(--text-muted)">风速</div><div style="font-size:14px;font-weight:700">${envData.windSpeed} m/s</div></div>
+        </div>
+        <div class="env-item">
+          <i class="fas fa-compass"></i>
+          <div><div style="font-size:11px;color:var(--text-muted)">风向</div><div style="font-size:14px;font-weight:700">${envData.windDir}</div></div>
+        </div>
+        <div class="env-item">
+          <i class="fas fa-temperature-half"></i>
+          <div><div style="font-size:11px;color:var(--text-muted)">温度</div><div style="font-size:14px;font-weight:700">${envData.temperature}°C</div></div>
+        </div>
+        <div class="env-item">
+          <i class="fas fa-droplet"></i>
+          <div><div style="font-size:11px;color:var(--text-muted)">湿度</div><div style="font-size:14px;font-weight:700">${envData.humidity}%</div></div>
+        </div>
+        <div class="env-item">
+          <i class="fas fa-gauge-high"></i>
+          <div><div style="font-size:11px;color:var(--text-muted)">气压</div><div style="font-size:14px;font-weight:700">${envData.pressure} hPa</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPI卡片 -->
+    <div style="padding:0 24px 16px;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;">
+      <div class="card kpi-card green">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">实时总功率</div>
+            <div class="kpi-value" style="color:var(--accent)">${(totalPower/1000).toFixed(1)}<span style="font-size:14px;font-weight:400;margin-left:4px;">MW</span></div>
+          </div>
+          <div style="width:40px;height:40px;background:var(--accent-dim);border-radius:10px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-bolt" style="color:var(--accent);font-size:16px;"></i></div>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+          <span class="kpi-trend up"><i class="fas fa-arrow-up" style="font-size:9px;"></i> 12.5%</span>
+          <span style="font-size:11px;color:var(--text-muted)">较昨日同时段</span>
+        </div>
+      </div>
+      <div class="card kpi-card blue">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">今日发电量</div>
+            <div class="kpi-value" style="color:var(--info)">${todayEnergy.toFixed(1)}<span style="font-size:14px;font-weight:400;margin-left:4px;">MWh</span></div>
+          </div>
+          <div style="width:40px;height:40px;background:rgba(62,168,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-chart-bar" style="color:var(--info);font-size:16px;"></i></div>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+          <span class="kpi-trend up"><i class="fas fa-arrow-up" style="font-size:9px;"></i> 8.3%</span>
+          <span style="font-size:11px;color:var(--text-muted)">较昨日</span>
+        </div>
+      </div>
+      <div class="card kpi-card yellow">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">运行风机</div>
+            <div class="kpi-value" style="color:var(--warning)">${running}<span style="font-size:14px;font-weight:400;margin-left:4px;">/ ${turbines.length} 台</span></div>
+          </div>
+          <div style="width:40px;height:40px;background:rgba(255,176,32,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-fan" style="color:var(--warning);font-size:16px;"></i></div>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:11px;color:var(--text-muted)">可用率 <strong style="color:var(--text-primary)">${(running/turbines.length*100).toFixed(1)}%</strong></span>
+        </div>
+      </div>
+      <div class="card kpi-card red">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">故障/离线</div>
+            <div class="kpi-value" style="color:var(--danger)">${faultCount}<span style="font-size:14px;font-weight:400;margin-left:4px;">台</span></div>
+          </div>
+          <div style="width:40px;height:40px;background:rgba(255,71,87,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;"><i class="fas fa-exclamation-triangle" style="color:var(--danger);font-size:16px;"></i></div>
+        </div>
+        <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+          <span class="kpi-trend down"><i class="fas fa-arrow-up" style="font-size:9px;"></i> 1台</span>
+          <span style="font-size:11px;color:var(--text-muted)">较昨日</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 图表行 -->
+    <div style="padding:0 24px 16px;display:grid;grid-template-columns:2fr 1fr;gap:16px;">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-size:14px;font-weight:700;">24小时发电功率曲线</div>
+          <span class="live-indicator"></span>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartHourlyPower"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;">风机状态分布</div>
+        <div class="chart-container">
+          <canvas id="chartStatusPie"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- 告警 + 工单 -->
+    <div style="padding:0 24px 24px;display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-size:14px;font-weight:700;">最新告警</div>
+          <button onclick="switchPage('alerts',document.querySelector('[data-page=alerts]'))" class="btn-outline" style="padding:4px 12px;font-size:12px;">查看全部</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;">
+          ${alerts.slice(0,4).map(a => `
+            <div class="alert-item" onclick="showAlertDetail('${a.id}')">
+              <div class="alert-icon ${a.level}"><i class="fas fa-${a.level==='danger'?'exclamation':a.level==='warning'?'triangle':'info'}"></i></div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.message}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">${a.turbineId} · ${a.time.split(' ')[1]}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div style="font-size:14px;font-weight:700;">进行中工单</div>
+          <button onclick="switchPage('maintenance',document.querySelector('[data-page=maintenance]'))" class="btn-outline" style="padding:4px 12px;font-size:12px;">查看全部</button>
+        </div>
+        ${workOrders.filter(w=>w.status!=='已完成').slice(0,4).map(w => `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(30,45,74,0.4);">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:13px;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${w.title}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${w.turbineId} · ${w.assignee} · 截止 ${w.deadline}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <span class="priority-${w.priority}" style="font-size:12px;font-weight:600;">${priorityText(w.priority)}</span>
+              <div class="progress-bar" style="width:60px;margin-top:4px;">
+                <div class="progress-fill" style="width:${w.progress}%;background:${w.priority==='high'?'var(--danger)':w.priority==='medium'?'var(--warning)':'var(--info)'}"></div>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  // 初始化风场画布
+  initWindCanvas();
+
+  // 24小时功率曲线
+  const hourLabels = Array.from({length:24}, (_,i) => `${String(i).padStart(2,'0')}:00`);
+  destroyChart('chartHourlyPower');
+  chartInstances['chartHourlyPower'] = new Chart(document.getElementById('chartHourlyPower'), {
+    type: 'line',
+    data: {
+      labels: hourLabels,
+      datasets: [{
+        label: '发电功率',
+        data: hourlyPower,
+        borderColor: '#00e5a0',
+        backgroundColor: 'rgba(0,229,160,0.08)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: '#00e5a0',
+        borderWidth: 2
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      interaction: { intersect: false, mode: 'index' },
+      scales: {
+        ...chartDefaults.scales,
+        y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => v + ' kW' } }
+      }
+    }
+  });
+
+  // 状态饼图
+  const statusCounts = {
+    running: turbines.filter(t=>t.status==='running').length,
+    warning: turbines.filter(t=>t.status==='warning').length,
+    fault: turbines.filter(t=>t.status==='fault').length,
+    maintenance: turbines.filter(t=>t.status==='maintenance').length,
+    offline: turbines.filter(t=>t.status==='offline').length
+  };
+  destroyChart('chartStatusPie');
+  chartInstances['chartStatusPie'] = new Chart(document.getElementById('chartStatusPie'), {
+    type: 'doughnut',
+    data: {
+      labels: ['正常运行','预警运行','故障停机','维护中','离线'],
+      datasets: [{
+        data: [statusCounts.running, statusCounts.warning, statusCounts.fault, statusCounts.maintenance, statusCounts.offline],
+        backgroundColor: ['#00e5a0','#ffb020','#ff4757','#3ea8ff','#4a5a80'],
+        borderColor: 'transparent',
+        borderWidth: 0,
+        spacing: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#7b8db5', font: { size: 11, family: 'Noto Sans SC' }, boxWidth: 10, padding: 12 }
+        }
+      }
+    }
+  });
+}
+
+// -------- 风机管理 --------
+function renderTurbines(container) {
+  container.innerHTML = `
+    <div style="padding:20px 24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;">风机管理</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">共 ${turbines.length} 台风机 · 实时监控运行状态</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-outline" onclick="filterTurbines('all')" id="filter-all" style="padding:6px 14px;font-size:12px;border-color:var(--accent);color:var(--accent);">全部</button>
+          <button class="btn-outline" onclick="filterTurbines('running')" id="filter-running" style="padding:6px 14px;font-size:12px;">运行中</button>
+          <button class="btn-outline" onclick="filterTurbines('warning')" id="filter-warning" style="padding:6px 14px;font-size:12px;">预警</button>
+          <button class="btn-outline" onclick="filterTurbines('fault')" id="filter-fault" style="padding:6px 14px;font-size:12px;">故障</button>
+        </div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table class="data-table" id="turbineTable">
+          <thead><tr>
+            <th>编号</th><th>位置</th><th>型号</th><th>状态</th><th>功率</th><th>风速</th><th>转速</th><th>机舱温度</th><th>振动</th><th>健康度</th><th>操作</th>
+          </tr></thead>
+          <tbody id="turbineTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  filterTurbines('all');
+}
+
+function filterTurbines(status) {
+  // 更新按钮样式
+  ['all','running','warning','fault'].forEach(s => {
+    const btn = document.getElementById('filter-'+s);
+    if (btn) {
+      btn.style.borderColor = s===status ? 'var(--accent)' : '';
+      btn.style.color = s===status ? 'var(--accent)' : '';
+    }
+  });
+  const filtered = status === 'all' ? turbines : turbines.filter(t => t.status === status);
+  const tbody = document.getElementById('turbineTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = filtered.map(t => `
+    <tr>
+      <td style="color:var(--text-primary);font-weight:600;">${t.id}</td>
+      <td>${t.location}</td>
+      <td>${t.model}</td>
+      <td><span class="status-tag ${t.status}"><span class="status-dot ${t.status}"></span>${statusText(t.status)}</span></td>
+      <td style="color:var(--text-primary);font-weight:600;font-family:'Orbitron',monospace;font-size:12px;">${t.power > 0 ? t.power : '--'}</td>
+      <td>${t.windSpeed > 0 ? t.windSpeed + ' m/s' : '--'}</td>
+      <td>${t.rotorSpeed > 0 ? t.rotorSpeed + ' rpm' : '--'}</td>
+      <td>${t.nacelleTemp}°C</td>
+      <td><span style="color:${t.vibration > 4 ? 'var(--danger)' : t.vibration > 3 ? 'var(--warning)' : 'var(--text-secondary)'}">${t.vibration} mm/s</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div class="progress-bar" style="width:50px;">
+            <div class="progress-fill" style="width:${t.health}%;background:${t.health>80?'var(--accent)':t.health>60?'var(--warning)':'var(--danger)'}"></div>
+          </div>
+          <span style="font-size:12px;color:${t.health>80?'var(--accent)':t.health>60?'var(--warning)':'var(--danger)'};font-weight:600;">${t.health}%</span>
+        </div>
+      </td>
+      <td><button class="btn-outline" style="padding:4px 10px;font-size:11px;" onclick="showTurbineDetail('${t.id}')">详情</button></td>
+    </tr>
+  `).join('');
+}
+
+function showTurbineDetail(id) {
+  const t = turbines.find(x => x.id === id);
+  if (!t) return;
+  document.getElementById('detailTitle').textContent = `${t.id} · ${t.name}`;
+  document.getElementById('detailContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px;">
+      <span class="status-tag ${t.status}" style="font-size:13px;"><span class="status-dot ${t.status}"></span>${statusText(t.status)}</span>
+      <span style="font-size:12px;color:var(--text-muted);">${t.model} · ${t.location}</span>
+    </div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">健康度评估</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+      <div class="progress-bar" style="flex:1;height:10px;border-radius:5px;">
+        <div class="progress-fill" style="width:${t.health}%;background:${t.health>80?'var(--accent)':t.health>60?'var(--warning)':'var(--danger)'};border-radius:5px;"></div>
+      </div>
+      <span class="font-display" style="font-size:20px;font-weight:900;color:${t.health>80?'var(--accent)':t.health>60?'var(--warning)':'var(--danger)'}">${t.health}%</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      ${[
+        ['实时功率', t.power > 0 ? t.power + ' kW' : '停机', 'fa-bolt', 'var(--accent)'],
+        ['风速', t.windSpeed + ' m/s', 'fa-wind', 'var(--info)'],
+        ['叶轮转速', t.rotorSpeed + ' rpm', 'fa-fan', 'var(--info)'],
+        ['偏航角度', t.yawAngle + '°', 'fa-compass', 'var(--info)'],
+        ['桨距角', t.pitchAngle + '°', 'fa-sliders-h', 'var(--info)'],
+        ['机舱温度', t.nacelleTemp + '°C', 'fa-temperature-half', t.nacelleTemp > 50 ? 'var(--danger)' : 'var(--text-secondary)'],
+        ['齿轮箱温度', t.gearTemp + '°C', 'fa-fire', t.gearTemp > 70 ? 'var(--danger)' : 'var(--text-secondary)'],
+        ['振动值', t.vibration + ' mm/s', 'fa-wave-square', t.vibration > 4 ? 'var(--danger)' : 'var(--text-secondary)'],
+      ].map(([label, val, icon, color]) => `
+        <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+            <i class="fas ${icon}" style="color:${color};font-size:10px;"></i>${label}
+          </div>
+          <div style="font-size:14px;font-weight:700;color:${color};">${val}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:12px;">发电统计</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;">
+      <div style="text-align:center;background:var(--bg-card);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">今日</div>
+        <div class="font-display" style="font-size:16px;font-weight:700;color:var(--accent);margin-top:4px;">${t.todayEnergy}<span style="font-size:10px;">MWh</span></div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">本月</div>
+        <div class="font-display" style="font-size:16px;font-weight:700;color:var(--info);margin-top:4px;">${t.monthEnergy}<span style="font-size:10px;">MWh</span></div>
+      </div>
+      <div style="text-align:center;background:var(--bg-card);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">累计</div>
+        <div class="font-display" style="font-size:16px;font-weight:700;color:var(--warning);margin-top:4px;">${t.totalEnergy}<span style="font-size:10px;">MWh</span></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-primary" style="flex:1;" onclick="openCreateWO('${t.id}')">创建工单</button>
+      <button class="btn-outline" style="flex:1;" onclick="showToast('已导出 ${t.id} 运行报告','success')">导出报告</button>
+    </div>
+  `;
+  document.getElementById('detailPanel').classList.add('open');
+}
+
+// -------- 发电监测 --------
+function renderPower(container) {
+  const totalMonth = monthlyPower.reduce((s,v)=>s+v,0);
+  const avgDaily = (totalMonth / 30).toFixed(1);
+
+  container.innerHTML = `
+    <div style="padding:20px 24px;">
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:4px;">发电监测</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">全风场发电数据实时分析与统计</p>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+        <div class="card kpi-card green">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">今日发电量</div>
+          <div class="kpi-value" style="color:var(--accent);font-size:24px;">${turbines.reduce((s,t)=>s+t.todayEnergy,0).toFixed(1)}<span style="font-size:12px;font-weight:400;"> MWh</span></div>
+        </div>
+        <div class="card kpi-card blue">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">本月累计</div>
+          <div class="kpi-value" style="color:var(--info);font-size:24px;">${totalMonth}<span style="font-size:12px;font-weight:400;"> MWh</span></div>
+        </div>
+        <div class="card kpi-card yellow">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">日均发电</div>
+          <div class="kpi-value" style="color:var(--warning);font-size:24px;">${avgDaily}<span style="font-size:12px;font-weight:400;"> MWh</span></div>
+        </div>
+        <div class="card kpi-card green">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">等效利用小时</div>
+          <div class="kpi-value" style="color:var(--accent);font-size:24px;">186<span style="font-size:12px;font-weight:400;"> h</span></div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+        <div class="card">
+          <div style="font-size:14px;font-weight:700;margin-bottom:16px;">月度发电量趋势</div>
+          <div class="chart-container"><canvas id="chartMonthly"></canvas></div>
+        </div>
+        <div class="card">
+          <div style="font-size:14px;font-weight:700;margin-bottom:16px;">各风机今日发电量对比</div>
+          <div class="chart-container"><canvas id="chartTurbineCompare"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;">风机功率排名（实时）</div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;">
+          ${turbines.filter(t=>t.power>0).sort((a,b)=>b.power-a.power).map((t,i) => `
+            <div style="background:var(--bg-main);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center;">
+              <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+                ${i<3?`<span style="color:${['var(--accent)','#c0c0c0','#cd7f32'][i]};font-weight:700;">#${i+1}</span>` : '#'+(i+1)}
+              </div>
+              <div style="font-size:12px;font-weight:600;color:var(--text-primary);">${t.id}</div>
+              <div class="font-display" style="font-size:16px;font-weight:700;color:var(--accent);margin:6px 0;">${t.power}<span style="font-size:9px;">kW</span></div>
+              <div class="progress-bar" style="height:4px;">
+                <div class="progress-fill" style="width:${(t.power/4000*100).toFixed(0)}%;background:var(--accent);"></div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // 月度趋势
+  destroyChart('chartMonthly');
+  chartInstances['chartMonthly'] = new Chart(document.getElementById('chartMonthly'), {
+    type: 'bar',
+    data: {
+      labels: monthlyLabels,
+      datasets: [{
+        label: '发电量',
+        data: monthlyPower,
+        backgroundColor: monthlyPower.map((v,i) => i===monthlyPower.length-1 ? '#00e5a0' : 'rgba(0,229,160,0.35)'),
+        borderRadius: 4,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      scales: {
+        ...chartDefaults.scales,
+        y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => v + ' MWh' } }
+      }
+    }
+  });
+
+  // 风机对比
+  destroyChart('chartTurbineCompare');
+  const sorted = [...turbines].sort((a,b)=>b.todayEnergy-a.todayEnergy);
+  chartInstances['chartTurbineCompare'] = new Chart(document.getElementById('chartTurbineCompare'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(t=>t.id),
+      datasets: [{
+        label: '今日发电',
+        data: sorted.map(t=>t.todayEnergy),
+        backgroundColor: sorted.map(t => t.todayEnergy > 10 ? 'rgba(0,229,160,0.6)' : t.todayEnergy > 5 ? 'rgba(255,176,32,0.6)' : 'rgba(255,71,87,0.4)'),
+        borderRadius: 3,
+        borderSkipped: false
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      indexAxis: 'y',
+      plugins: { ...chartDefaults.plugins, legend: { display: false } },
+      scales: {
+        x: { ...chartDefaults.scales.x, ticks: { ...chartDefaults.scales.x.ticks, callback: v => v + ' MWh' } },
+        y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+// -------- 运维工单 --------
+function renderMaintenance(container) {
+  const pending = workOrders.filter(w=>w.status==='待分配').length;
+  const inProgress = workOrders.filter(w=>w.status==='进行中').length;
+  const completed = workOrders.filter(w=>w.status==='已完成').length;
+
+  container.innerHTML = `
+    <div style="padding:20px 24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;">运维工单</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">工单全生命周期管理</p>
+        </div>
+        <button class="btn-primary" onclick="openCreateWO()"><i class="fas fa-plus" style="margin-right:6px;"></i>创建工单</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;">
+        <div class="card" style="text-align:center;padding:16px;">
+          <div style="font-size:28px;font-weight:900;color:var(--warning);font-family:'Orbitron',monospace;">${pending}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">待分配</div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px;">
+          <div style="font-size:28px;font-weight:900;color:var(--info);font-family:'Orbitron',monospace;">${inProgress}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">进行中</div>
+        </div>
+        <div class="card" style="text-align:center;padding:16px;">
+          <div style="font-size:28px;font-weight:900;color:var(--accent);font-family:'Orbitron',monospace;">${completed}</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">已完成</div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table class="data-table">
+          <thead><tr>
+            <th>工单号</th><th>风机</th><th>标题</th><th>优先级</th><th>状态</th><th>负责人</th><th>截止日期</th><th>进度</th><th>操作</th>
+          </tr></thead>
+          <tbody>
+            ${workOrders.map(w => `
+              <tr>
+                <td style="color:var(--text-primary);font-weight:500;">${w.id}</td>
+                <td>${w.turbineId}</td>
+                <td style="color:var(--text-primary);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${w.title}</td>
+                <td><span class="priority-${w.priority}" style="font-weight:600;font-size:12px;">${priorityText(w.priority)}</span></td>
+                <td><span style="font-size:12px;color:${w.status==='已完成'?'var(--accent)':w.status==='进行中'?'var(--info)':'var(--text-muted)'}">${woStatusText(w.status)}</span></td>
+                <td>${w.assignee}</td>
+                <td>${w.deadline}</td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <div class="progress-bar" style="width:50px;">
+                      <div class="progress-fill" style="width:${w.progress}%;background:${w.progress===100?'var(--accent)':w.progress>0?'var(--info)':'var(--text-muted)'}"></div>
+                    </div>
+                    <span style="font-size:11px;color:var(--text-muted);">${w.progress}%</span>
+                  </div>
+                </td>
+                <td>
+                  <button class="btn-outline" style="padding:3px 8px;font-size:11px;" onclick="showWODetail('${w.id}')">详情</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function showWODetail(id) {
+  const w = workOrders.find(x => x.id === id);
+  if (!w) return;
+  openModal(`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+      <div>
+        <h3 style="font-size:16px;font-weight:700;">${w.title}</h3>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${w.id} · ${w.turbineId}</div>
+      </div>
+      <button onclick="closeModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;" aria-label="关闭"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div style="background:var(--bg-main);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">优先级</div>
+        <div class="priority-${w.priority}" style="font-size:14px;font-weight:700;margin-top:4px;">${priorityText(w.priority)}</div>
+      </div>
+      <div style="background:var(--bg-main);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">状态</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:4px;">${woStatusText(w.status)}</div>
+      </div>
+      <div style="background:var(--bg-main);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">负责人</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:4px;">${w.assignee}</div>
+      </div>
+      <div style="background:var(--bg-main);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">截止日期</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:4px;">${w.deadline}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:20px;">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;">执行进度</div>
+      <div class="progress-bar" style="height:10px;border-radius:5px;">
+        <div class="progress-fill" style="width:${w.progress}%;background:${w.progress===100?'var(--accent)':'var(--info)'};border-radius:5px;"></div>
+      </div>
+      <div style="text-align:right;font-size:12px;color:var(--text-muted);margin-top:4px;">${w.progress}%</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      ${w.status==='待分配'?`<button class="btn-primary" style="flex:1;" onclick="closeModal();showToast('工单已分配给李建国','success')">分配工单</button>`:''}
+      ${w.status==='进行中'?`<button class="btn-primary" style="flex:1;" onclick="closeModal();showToast('工单已完成','success')">完成工单</button>`:''}
+      <button class="btn-outline" style="flex:1;" onclick="closeModal()">关闭</button>
+    </div>
+  `);
+}
+
+function openCreateWO(turbineId) {
+  openModal(`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+      <h3 style="font-size:16px;font-weight:700;">创建运维工单</h3>
+      <button onclick="closeModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;" aria-label="关闭"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">关联风机</label>
+        <select id="woTurbine" style="width:100%;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;">
+          ${turbines.map(t=>`<option value="${t.id}" ${t.id===turbineId?'selected':''}>${t.id} · ${t.name}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">工单标题</label>
+        <input type="text" id="woTitle" placeholder="请输入工单标题" style="width:100%;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">优先级</label>
+          <select id="woPriority" style="width:100%;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;">
+            <option value="high">紧急</option>
+            <option value="medium" selected>一般</option>
+            <option value="low">低</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">负责人</label>
+          <select id="woAssignee" style="width:100%;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;">
+            <option>李建国</option>
+            <option>王志强</option>
+            <option>赵海峰</option>
+            <option>陈明亮</option>
+            <option>刘卫东</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">截止日期</label>
+        <input type="date" id="woDeadline" style="width:100%;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;">
+      </div>
+      <div>
+        <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:4px;">描述</label>
+        <textarea id="woDesc" rows="3" placeholder="请输入工单描述..." style="width:100%;background:var(--bg-main);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text-primary);font-size:13px;font-family:inherit;outline:none;resize:vertical;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:4px;">
+        <button class="btn-primary" style="flex:1;" onclick="submitWO()">提交工单</button>
+        <button class="btn-outline" style="flex:1;" onclick="closeModal()">取消</button>
+      </div>
+    </div>
+  `);
+}
+
+function submitWO() {
+  const title = document.getElementById('woTitle').value.trim();
+  if (!title) { showToast('请填写工单标题', 'warning'); return; }
+  closeModal();
+  showToast(`工单创建成功：${title}`, 'success');
+}
+
+// -------- 告警中心 --------
+function renderAlerts(container) {
+  container.innerHTML = `
+    <div style="padding:20px 24px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <div>
+          <h2 style="font-size:18px;font-weight:700;">告警中心</h2>
+          <p style="font-size:13px;color:var(--text-muted);margin-top:4px;">共 ${alerts.length} 条告警 · ${alerts.filter(a=>a.status==='未处理').length} 条待处理</p>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-outline" onclick="filterAlerts('all')" id="af-all" style="padding:6px 14px;font-size:12px;border-color:var(--accent);color:var(--accent);">全部</button>
+          <button class="btn-outline" onclick="filterAlerts('danger')" id="af-danger" style="padding:6px 14px;font-size:12px;">严重</button>
+          <button class="btn-outline" onclick="filterAlerts('warning')" id="af-warning" style="padding:6px 14px;font-size:12px;">警告</button>
+          <button class="btn-outline" onclick="filterAlerts('info')" id="af-info" style="padding:6px 14px;font-size:12px;">提示</button>
+        </div>
+      </div>
+      <div id="alertList">${renderAlertItems(alerts)}</div>
+    </div>
+  `;
+}
+
+function renderAlertItems(list) {
+  return list.map(a => `
+    <div class="card" style="margin-bottom:12px;padding:16px;cursor:pointer;" onclick="showAlertDetail('${a.id}')">
+      <div style="display:flex;align-items:flex-start;gap:14px;">
+        <div class="alert-icon ${a.level}" style="margin-top:2px;"><i class="fas fa-${a.level==='danger'?'exclamation':a.level==='warning'?'triangle':'info'}"></i></div>
+        <div style="flex:1;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span style="font-size:13px;font-weight:600;color:var(--text-primary);">${a.type}</span>
+            <span style="font-size:11px;color:var(--text-muted);background:var(--bg-main);padding:2px 8px;border-radius:4px;">${a.turbineId}</span>
+            <span style="font-size:11px;padding:2px 8px;border-radius:4px;${a.status==='未处理'?'background:rgba(255,71,87,0.15);color:var(--danger)':a.status==='处理中'?'background:rgba(62,168,255,0.15);color:var(--info)':'background:rgba(0,229,160,0.15);color:var(--accent)'}">${a.status}</span>
+          </div>
+          <div style="font-size:13px;color:var(--text-secondary);line-height:1.5;">${a.message}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:6px;"><i class="fas fa-clock" style="margin-right:4px;"></i>${a.time}</div>
+        </div>
+        <i class="fas fa-chevron-right" style="color:var(--text-muted);font-size:12px;margin-top:6px;"></i>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterAlerts(level) {
+  ['all','danger','warning','info'].forEach(l => {
+    const btn = document.getElementById('af-'+l);
+    if (btn) { btn.style.borderColor = l===level ? 'var(--accent)' : ''; btn.style.color = l===level ? 'var(--accent)' : ''; }
+  });
+  const filtered = level === 'all' ? alerts : alerts.filter(a => a.level === level);
+  document.getElementById('alertList').innerHTML = renderAlertItems(filtered);
+}
+
+function showAlertDetail(id) {
+  const a = alerts.find(x => x.id === id);
+  if (!a) return;
+  openModal(`
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="alert-icon ${a.level}" style="width:40px;height:40px;font-size:16px;"><i class="fas fa-${a.level==='danger'?'exclamation':a.level==='warning'?'triangle':'info'}"></i></div>
+        <div>
+          <h3 style="font-size:16px;font-weight:700;">${a.type}</h3>
+          <div style="font-size:12px;color:var(--text-muted);">${a.id} · ${a.turbineId}</div>
+        </div>
+      </div>
+      <button onclick="closeModal()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:18px;" aria-label="关闭"><i class="fas fa-times"></i></button>
+    </div>
+    <div style="background:var(--bg-main);border-radius:8px;padding:14px;margin-bottom:16px;">
+      <div style="font-size:13px;color:var(--text-secondary);line-height:1.6;">${a.message}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+      <div style="background:var(--bg-main);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">告警级别</div>
+        <div style="font-size:14px;font-weight:700;color:${a.level==='danger'?'var(--danger)':a.level==='warning'?'var(--warning)':'var(--info)'};margin-top:4px;">${a.level==='danger'?'严重':a.level==='warning'?'警告':'提示'}</div>
+      </div>
+      <div style="background:var(--bg-main);border-radius:8px;padding:12px;">
+        <div style="font-size:11px;color:var(--text-muted);">处理状态</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:4px;">${a.status}</div>
+      </div>
+      <div style="background:var(--bg-main);border-radius:8px;padding:12px;grid-column:span 2;">
+        <div style="font-size:11px;color:var(--text-muted);">告警时间</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-top:4px;">${a.time}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      ${a.status==='未处理'?`<button class="btn-primary" style="flex:1;" onclick="closeModal();showToast('告警已确认，工单创建中','success')">确认并创建工单</button>`:''}
+      ${a.status==='已确认'?`<button class="btn-primary" style="flex:1;" onclick="closeModal();showToast('告警处理已开始','info')">开始处理</button>`:''}
+      <button class="btn-outline" style="flex:1;" onclick="closeModal()">关闭</button>
+    </div>
+  `);
+}
+
+// -------- 数据分析 --------
+function renderAnalysis(container) {
+  container.innerHTML = `
+    <div style="padding:20px 24px;">
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:4px;">数据分析</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">多维度数据深度分析，辅助决策优化</p>
+
+      <div style="display:flex;gap:8px;margin-bottom:20px;">
+        <button class="tab-btn active" onclick="switchAnalysisTab('health',this)">设备健康分析</button>
+        <button class="tab-btn" onclick="switchAnalysisTab('wind',this)">风资源分析</button>
+        <button class="tab-btn" onclick="switchAnalysisTab('efficiency',this)">发电效率分析</button>
+      </div>
+
+      <div id="analysisTab-health" class="tab-content active">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card">
+            <div style="font-size:14px;font-weight:700;margin-bottom:16px;">风机健康度分布</div>
+            <div class="chart-container"><canvas id="chartHealth"></canvas></div>
+          </div>
+          <div class="card">
+            <div style="font-size:14px;font-weight:700;margin-bottom:16px;">关键参数异常统计</div>
+            <div class="chart-container"><canvas id="chartAnomaly"></canvas></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div style="font-size:14px;font-weight:700;margin-bottom:16px;">重点关注设备</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+            ${turbines.filter(t=>t.health<80).sort((a,b)=>a.health-b.health).map(t => `
+              <div style="background:var(--bg-main);border:1px solid var(--border);border-radius:10px;padding:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <span style="font-weight:700;">${t.id}</span>
+                  <span class="status-tag ${t.status}" style="font-size:11px;"><span class="status-dot ${t.status}"></span>${statusText(t.status)}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+                  <div class="progress-bar" style="flex:1;height:8px;border-radius:4px;">
+                    <div class="progress-fill" style="width:${t.health}%;background:${t.health>60?'var(--warning)':'var(--danger)'};border-radius:4px;"></div>
+                  </div>
+                  <span class="font-display" style="font-size:16px;font-weight:900;color:${t.health>60?'var(--warning)':'var(--danger)'}">${t.health}%</span>
+                </div>
+                <div style="font-size:11px;color:var(--text-muted);line-height:1.8;">
+                  振动: <span style="color:${t.vibration>4?'var(--danger)':'var(--text-secondary)'}">${t.vibration}mm/s</span> · 
+                  齿轮箱: <span style="color:${t.gearTemp>70?'var(--danger)':'var(--text-secondary)'}">${t.gearTemp}°C</span> · 
+                  机舱: <span style="color:${t.nacelleTemp>50?'var(--danger)':'var(--text-secondary)'}">${t.nacelleTemp}°C</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div id="analysisTab-wind" class="tab-content">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card">
+            <div style="font-size:14px;font-weight:700;margin-bottom:16px;">风速频率分布</div>
+            <div class="chart-container"><canvas id="chartWindFreq"></canvas></div>
+          </div>
+          <div class="card">
+            <div style="font-size:14px;font-weight:700;margin-bottom:16px;">风向玫瑰图</div>
+            <div class="chart-container"><canvas id="chartWindRose"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="analysisTab-efficiency" class="tab-content">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card">
+            <div style="font-size:14px;font-weight:700;margin-bottom:16px;">设备可利用率趋势</div>
+            <div class="chart-container"><canvas id="chartAvailability"></canvas></div>
+          </div>
+          <div class="card">
+            <div style="font-size:14px;font-weight:700;margin-bottom:16px;">容量因子对比</div>
+            <div class="chart-container"><canvas id="chartCapacity"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // 健康度分布
+  destroyChart('chartHealth');
+  const healthBuckets = [0,0,0,0,0]; // <40, 40-60, 60-80, 80-95, 95+
+  turbines.forEach(t => {
+    if (t.health < 40) healthBuckets[0]++;
+    else if (t.health < 60) healthBuckets[1]++;
+    else if (t.health < 80) healthBuckets[2]++;
+    else if (t.health < 95) healthBuckets[3]++;
+    else healthBuckets[4]++;
+  });
+  chartInstances['chartHealth'] = new Chart(document.getElementById('chartHealth'), {
+    type: 'bar',
+    data: {
+      labels: ['<40%','40-60%','60-80%','80-95%','>95%'],
+      datasets: [{
+        label: '风机数量',
+        data: healthBuckets,
+        backgroundColor: ['#ff4757','#ff6b6b','#ffb020','#3ea8ff','#00e5a0'],
+        borderRadius: 6,
+        borderSkipped: false
+      }]
+    },
+    options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, legend: { display: false } } }
+  });
+
+  // 异常统计
+  destroyChart('chartAnomaly');
+  chartInstances['chartAnomaly'] = new Chart(document.getElementById('chartAnomaly'), {
+    type: 'radar',
+    data: {
+      labels: ['振动异常','温度异常','功率异常','通信异常','润滑异常','偏航异常'],
+      datasets: [
+        { label: '本月', data: [3,4,2,1,3,1], borderColor: '#00e5a0', backgroundColor: 'rgba(0,229,160,0.1)', pointBackgroundColor: '#00e5a0', borderWidth: 2 },
+        { label: '上月', data: [5,3,4,2,2,3], borderColor: '#ff4757', backgroundColor: 'rgba(255,71,87,0.1)', pointBackgroundColor: '#ff4757', borderWidth: 2 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        r: {
+          angleLines: { color: 'rgba(30,45,74,0.4)' },
+          grid: { color: 'rgba(30,45,74,0.4)' },
+          pointLabels: { color: '#7b8db5', font: { size: 11, family: 'Noto Sans SC' } },
+          ticks: { display: false }
+        }
+      },
+      plugins: {
+        legend: { labels: { color: '#7b8db5', font: { size: 11, family: 'Noto Sans SC' }, boxWidth: 12, padding: 16 } }
+      }
+    }
+  });
+}
+
+function switchAnalysisTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('analysisTab-'+tab).classList.add('active');
+
+  if (tab === 'wind') {
+    // 风速频率分布
+    destroyChart('chartWindFreq');
+    const windBins = ['0-3','3-6','6-9','9-12','12-15','15-18','18-21','21+'];
+    const windFreq = [5,12,18,28,22,10,4,1];
+    chartInstances['chartWindFreq'] = new Chart(document.getElementById('chartWindFreq'), {
+      type: 'bar',
+      data: {
+        labels: windBins.map(b => b+' m/s'),
+        datasets: [{
+          label: '频率(%)',
+          data: windFreq,
+          backgroundColor: windFreq.map((_,i) => i>=3&&i<=5 ? 'rgba(0,229,160,0.6)' : 'rgba(62,168,255,0.35)'),
+          borderRadius: 4,
+          borderSkipped: false
+        }]
+      },
+      options: { ...chartDefaults, plugins: { ...chartDefaults.plugins, legend: { display: false } } }
+    });
+
+    // 风向玫瑰图（极坐标柱状图）
+    destroyChart('chartWindRose');
+    const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+    const dirFreq = [2,3,5,8,12,10,6,4,3,4,18,22,15,8,5,3];
+    chartInstances['chartWindRose'] = new Chart(document.getElementById('chartWindRose'), {
+      type: 'polarArea',
+      data: {
+        labels: dirs,
+        datasets: [{
+          data: dirFreq,
+          backgroundColor: dirFreq.map(v => v > 15 ? 'rgba(0,229,160,0.5)' : v > 10 ? 'rgba(62,168,255,0.4)' : 'rgba(62,168,255,0.2)'),
+          borderColor: 'transparent'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            grid: { color: 'rgba(30,45,74,0.3)' },
+            ticks: { display: false }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+  }
+
+  if (tab === 'efficiency') {
+    // 可利用率趋势
+    destroyChart('chartAvailability');
+    chartInstances['chartAvailability'] = new Chart(document.getElementById('chartAvailability'), {
+      type: 'line',
+      data: {
+        labels: monthlyLabels,
+        datasets: [
+          { label: '设备可利用率', data: [96.2,97.1,95.8,98.2,97.5,96.8,94.2,93.5,96.8,97.8,98.1,97.5], borderColor: '#00e5a0', backgroundColor: 'rgba(0,229,160,0.05)', fill: true, tension: 0.4, pointRadius: 3, pointBackgroundColor: '#00e5a0', borderWidth: 2 },
+          { label: '计划可利用率', data: Array(12).fill(97), borderColor: 'rgba(255,176,32,0.5)', borderDash: [5,5], pointRadius: 0, borderWidth: 1 }
+        ]
+      },
+      options: {
+        ...chartDefaults,
+        scales: {
+          ...chartDefaults.scales,
+          y: { ...chartDefaults.scales.y, min: 88, max: 100, ticks: { ...chartDefaults.scales.y.ticks, callback: v => v + '%' } }
+        }
+      }
+    });
+
+    // 容量因子
+    destroyChart('chartCapacity');
+    const cf = turbines.filter(t=>t.status==='running').map(t => ((t.power/(t.model.includes('4.0')?4000:3600))*100).toFixed(1));
+    chartInstances['chartCapacity'] = new Chart(document.getElementById('chartCapacity'), {
+      type: 'bar',
+      data: {
+        labels: turbines.filter(t=>t.status==='running').map(t=>t.id),
+        datasets: [{
+          label: '容量因子(%)',
+          data: cf,
+          backgroundColor: cf.map(v => v > 85 ? 'rgba(0,229,160,0.6)' : v > 70 ? 'rgba(62,168,255,0.5)' : 'rgba(255,176,32,0.5)'),
+          borderRadius: 4,
+          borderSkipped: false
+        }]
+      },
+      options: {
+        ...chartDefaults,
+        plugins: { ...chartDefaults.plugins, legend: { display: false } },
+        scales: {
+          ...chartDefaults.scales,
+          y: { ...chartDefaults.scales.y, ticks: { ...chartDefaults.scales.y.ticks, callback: v => v + '%' } }
+        }
+      }
+    });
+  }
+}
+
+// -------- 系统设置 --------
+function renderSettings(container) {
+  container.innerHTML = `
+    <div style="padding:20px 24px;max-width:720px;">
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:4px;">系统设置</h2>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">平台参数与告警阈值配置</p>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;">告警阈值配置</div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          ${[
+            ['主轴承温度上限', '85', '°C', 'bearing_temp'],
+            ['齿轮箱温度上限', '75', '°C', 'gear_temp'],
+            ['振动值预警阈值', '4.5', 'mm/s', 'vibration_warn'],
+            ['振动值报警阈值', '6.0', 'mm/s', 'vibration_alarm'],
+            ['机舱温度上限', '55', '°C', 'nacelle_temp'],
+            ['通信中断超时', '30', '分钟', 'comm_timeout'],
+          ].map(([label, val, unit, key]) => `
+            <div style="display:flex;align-items:center;gap:16px;">
+              <div style="flex:1;font-size:13px;color:var(--text-secondary);">${label}</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <input type="number" value="${val}" id="setting_${key}" style="width:80px;background:var(--bg-main);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text-primary);font-size:13px;font-family:inherit;text-align:right;outline:none;" onfocus="this.style.borderColor='var(--accent)'" onblur="this.style.borderColor='var(--border)'">
+                <span style="font-size:12px;color:var(--text-muted);width:30px;">${unit}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;">通知设置</div>
+        <div style="display:flex;flex-direction:column;gap:14px;">
+          ${[
+            ['严重告警短信通知', true],
+            ['告警推送至运维APP', true],
+            ['工单状态变更通知', true],
+            ['日报自动推送', false],
+            ['周报自动推送', false],
+          ].map(([label, checked]) => `
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <span style="font-size:13px;color:var(--text-secondary);">${label}</span>
+              <label style="position:relative;width:40px;height:22px;cursor:pointer;">
+                <input type="checkbox" ${checked?'checked':''} style="opacity:0;width:0;height:0;" onchange="this.parentElement.querySelector('span').style.background=this.checked?'var(--accent)':'var(--text-muted)'">
+                <span style="position:absolute;inset:0;background:${checked?'var(--accent)':'var(--text-muted)'};border-radius:11px;transition:background 0.2s;"></span>
+                <span style="position:absolute;top:2px;left:${checked?'20px':'2px'};width:18px;height:18px;background:#fff;border-radius:50%;transition:left 0.2s;"></span>
+              </label>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:16px;">风场信息</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div><div style="font-size:11px;color:var(--text-muted);">风场名称</div><div style="font-size:13px;color:var(--text-primary);margin-top:4px;">北方风电场</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);">装机容量</div><div style="font-size:13px;color:var(--text-primary);margin-top:4px;">53.4 MW</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);">风机数量</div><div style="font-size:13px;color:var(--text-primary);margin-top:4px;">15 台</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);">投运日期</div><div style="font-size:13px;color:var(--text-primary);margin-top:4px;">2021-06-15</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);">经度</div><div style="font-size:13px;color:var(--text-primary);margin-top:4px;">116.3825°E</div></div>
+          <div><div style="font-size:11px;color:var(--text-muted);">纬度</div><div style="font-size:13px;color:var(--text-primary);margin-top:4px;">40.6128°N</div></div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;">
+        <button class="btn-primary" onclick="showToast('设置已保存','success')">保存设置</button>
+        <button class="btn-outline" onclick="showToast('已恢复默认设置','info')">恢复默认</button>
+      </div>
+    </div>
+  `;
+}
+
+// ===================== 初始化 =====================
+switchPage('overview', document.querySelector('[data-page="overview"]'));
+
+// 模拟实时数据更新
+setInterval(() => {
+  turbines.forEach(t => {
+    if (t.status === 'running') {
+      t.power = Math.max(0, t.power + Math.round((Math.random()-0.5)*100));
+      t.windSpeed = Math.max(0, +(t.windSpeed + (Math.random()-0.5)*0.3).toFixed(1));
+      t.rotorSpeed = Math.max(0, +(t.rotorSpeed + (Math.random()-0.5)*0.2).toFixed(1));
+      t.nacelleTemp = Math.max(30, +(t.nacelleTemp + (Math.random()-0.5)*0.5).toFixed(0));
+      t.vibration = Math.max(0.5, +(t.vibration + (Math.random()-0.5)*0.2).toFixed(1));
+    }
+  });
+}, 3000);
+</script>
+</body>
+</html>
